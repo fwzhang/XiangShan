@@ -48,6 +48,8 @@ class Rename extends XSModule {
 
   fpFreeList.redirect := io.redirect
   intFreeList.redirect := io.redirect
+  fpRat.redirect := io.redirect
+  intRat.redirect := io.redirect
 
   val flush = io.redirect.valid && (io.redirect.bits.isException || io.redirect.bits.isFlushPipe) // TODO: need check by JiaWei
   fpRat.flush := flush
@@ -106,6 +108,10 @@ class Rename extends XSModule {
     for(fl <- Seq(fpFreeList, intFreeList)){
       fl.cpReqs(i).valid := inValid
       fl.cpReqs(i).bits := io.in(i).bits.brTag
+    }
+    for(rat <- Seq(fpRat, intRat)){
+      rat.cpReqs(i).valid := inValid
+      rat.cpReqs(i).bits := io.in(i).bits.brTag
     }
 
     lastReady = io.in(i).ready

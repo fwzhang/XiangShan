@@ -91,7 +91,7 @@ class Roq(numWbPorts: Int) extends XSModule with HasCircularQueuePtrHelper {
     val roqIdxExt = enqPtrExt + offset
     val roqIdx = roqIdxExt.value
 
-    when(io.dp1Req(i).fire()){
+    when(io.dp1Req(i).fire() && !io.brqRedirect.valid){
       microOp(roqIdx) := io.dp1Req(i).bits
       valid(roqIdx) := true.B
       flag(roqIdx) := roqIdxExt.flag
@@ -292,18 +292,30 @@ class Roq(numWbPorts: Int) extends XSModule with HasCircularQueuePtrHelper {
 
   // when redirect, walk back roq entries
   when(io.brqRedirect.valid){ // TODO: need check if consider exception redirect?
+    XSDebug(p"brq redirect: roqIdx: " +
+      p"v: ${io.brqRedirect.bits.roqIdx.value} f:${io.brqRedirect.bits.roqIdx.flag}\n"
+    )
+    enqPtrExt := io.brqRedirect.bits.roqIdx + 1.U
+    for(i <- 0 until RoqSize){
+      val recRoqIdx = RoqPtr(flag(i), i.U)
+      when(isAfter(recRoqIdx, io.brqRedirect.bits.roqIdx)){
+        valid(i) := false.B
+      }
+    }
+    /*
     state := s_walk
     walkPtrExt := Mux(state === s_walk && !walkFinished, walkPtrExt - CommitWidth.U, Mux(state === s_extrawalk, walkPtrExt, enqPtrExt - 1.U + dispatchCnt))
     walkTgtExt := io.brqRedirect.bits.roqIdx
     enqPtrExt := io.brqRedirect.bits.roqIdx + 1.U
+     */
   }
 
   // no enough space for walk, allocate extra space
   when(needExtraSpaceForMPR.asUInt.orR && io.brqRedirect.valid){
-    usedSpaceForMPR := needExtraSpaceForMPR
-    (0 until RenameWidth).foreach(i => extraSpaceForMPR(i) := io.dp1Req(i).bits)
-    state := s_extrawalk
-    XSDebug("roq full, switched to s_extrawalk. needExtraSpaceForMPR: %b\n", needExtraSpaceForMPR.asUInt)
+//    usedSpaceForMPR := needExtraSpaceForMPR
+//    (0 until RenameWidth).foreach(i => extraSpaceForMPR(i) := io.dp1Req(i).bits)
+//    state := s_extrawalk
+//    XSDebug("roq full, switched to s_extrawalk. needExtraSpaceForMPR: %b\n", needExtraSpaceForMPR.asUInt)
   }
 
   // when rollback, reset writebacked entry to valid
