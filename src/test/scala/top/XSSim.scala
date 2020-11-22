@@ -184,6 +184,7 @@ object TestMain extends App {
     else if(args.contains("--disable-log")) Parameters.simParameters // sim only, disable log
     else Parameters.debugParameters // open log
   )
+  Parameters.set(Parameters.get.copy(coreParameters = Parameters.bigCoreParams))
 
   implicit val p = config.Parameters.empty
   // generate verilog
