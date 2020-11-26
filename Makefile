@@ -166,9 +166,12 @@ cache:
 	$(MAKE) emu IMAGE=Makefile
 
 clean:
-	git submodule foreach git clean -fdx
-	git clean -fd
-	rm -rf ./build
+	rm -rf ${BUILD_DIR}/
+	# git submodule foreach git clean -fdx
+	# git clean -fd
+
+clean_emu:
+	rm -rf ${BUILD_DIR}/emu-compile
 
 init:
 	git submodule update --init

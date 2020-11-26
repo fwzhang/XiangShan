@@ -75,6 +75,7 @@ object HigherMask {
   }
   def apply(a: UInt): UInt = {
     apply(a, a.getWidth)
+<<<<<<< Updated upstream
   }
 }
 
@@ -87,6 +88,8 @@ object LowerMaskFromLowest {
 object HigherMaskFromHighest {
   def apply(a: UInt) = {
     Reverse(LowerMask(PriorityEncoderOH(Reverse(a))))
+=======
+>>>>>>> Stashed changes
   }
 }
 

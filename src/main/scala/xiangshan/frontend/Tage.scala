@@ -134,13 +134,14 @@ class TageTable(val nRows: Int, val histLen: Int, val tagLen: Int, val uBitPerio
 
   class HL_Bank (val nRows: Int = nRows) extends TageModule {
     val io = IO(new Bundle {
+      val reset = Input(Bool())
       val r = new Bundle {
         val req = Flipped(ValidIO(new Bundle {
           val setIdx = UInt(log2Ceil(nRows).W)
         }))
-        val resp = new Bundle {
-          val data = Output(Bool())
-        }
+        val resp = Output(new Bundle {
+          val data = Bool()
+        })
       }
       val w = new Bundle {
         val req = Flipped(ValidIO(new Bundle {
@@ -158,8 +159,8 @@ class TageTable(val nRows: Int, val histLen: Int, val tagLen: Int, val uBitPerio
     }
   }
 
-  val hi_us = List.fill(TageBanks)(Module(new HL_Bank(nRows)))
-  val lo_us = List.fill(TageBanks)(Module(new HL_Bank(nRows)))
+  val hi_us = List.fill(TageBanks)(Module(new SRAMTemplate(Bool(), set=nRows, shouldReset=false, holdRead=true, singlePort=false)))
+  val lo_us = List.fill(TageBanks)(Module(new SRAMTemplate(Bool(), set=nRows, shouldReset=false, holdRead=true, singlePort=false)))
   val table = List.fill(TageBanks)(Module(new SRAMTemplate(new TageEntry, set=nRows, shouldReset=false, holdRead=true, singlePort=false)))
 
   val hi_us_r = WireInit(0.U.asTypeOf(Vec(TageBanks, Bool())))
@@ -496,7 +497,7 @@ class Tage extends BaseTage {
     io.meta(w).allocate.bits := allocEntry
 
     val scMeta = io.meta(w).scMeta
-    scMeta := DontCare
+    // scMeta := DontCare
     val scTableSums = VecInit(
       (0 to 1) map { i => {
           // val providerCtr = resps(provider)(w).bits.ctr.zext()
@@ -517,15 +518,16 @@ class Tage extends BaseTage {
       scMeta.scUsed := provided
       scMeta.scPred := tageTaken
       scMeta.sumAbs := 0.U
+      val providerCtr = resps(provider)(w).bits.ctr.zext()
+      val pvdrCtrCentered = ((((providerCtr - 4.S) << 1).asSInt + 1.S) << 3).asSInt
+      val totalSum = scTableSums(tageTaken.asUInt) + pvdrCtrCentered
+      val sumAbs = totalSum.abs().asUInt
+      val sumBelowThreshold = totalSum.abs.asUInt < useThreshold
+      val scPred = totalSum >= 0.S
+      scMeta.sumAbs := sumAbs
+      scMeta.ctrs   := VecInit(scResps.map(r => r(w).ctr(tageTaken.asUInt)))
+      scMeta.scPred := scPred
       when (provided) {
-        val providerCtr = resps(provider)(w).bits.ctr.zext()
-        val pvdrCtrCentered = ((((providerCtr - 4.S) << 1).asSInt + 1.S) << 3).asSInt
-        val totalSum = scTableSums(tageTaken.asUInt) + pvdrCtrCentered
-        val sumAbs = totalSum.abs().asUInt
-        val sumBelowThreshold = totalSum.abs.asUInt < useThreshold
-        val scPred = totalSum >= 0.S
-        scMeta.sumAbs := sumAbs
-        scMeta.ctrs   := VecInit(scResps.map(r => r(w).ctr(tageTaken.asUInt)))
         for (i <- 0 until SCNTables) {
           XSDebug(RegNext(io.s3Fire), p"SCTable(${i.U})(${w.U}): ctr:(${scResps(i)(w).ctr(0)},${scResps(i)(w).ctr(1)})\n")
         }
@@ -533,7 +535,6 @@ class Tage extends BaseTage {
         // Use prediction from Statistical Corrector
         when (!sumBelowThreshold) {
           XSDebug(RegNext(io.s3Fire), p"SC(${w.U}) overriden pred to ${scPred}\n")
-          scMeta.scPred := scPred
           io.resp.takens(w) := scPred
         }
       }
@@ -549,7 +550,7 @@ class Tage extends BaseTage {
         updateUMask(provider)(w) := true.B
 
         updateU(provider)(w) := Mux(!updateMeta.altDiffers, updateMeta.providerU,
-          Mux(updateMisPred, Mux(updateMeta.providerU === 0.U, 0.U, updateMeta.providerU - 1.U),
+          Mux(updateTageMisPred, Mux(updateMeta.providerU === 0.U, 0.U, updateMeta.providerU - 1.U),
                               Mux(updateMeta.providerU === 3.U, 3.U, updateMeta.providerU + 1.U))
         )
         updateTaken(provider)(w) := isUpdateTaken
@@ -586,7 +587,7 @@ class Tage extends BaseTage {
       val tageTaken = updateSCMeta.tageTaken
       val sumAbs = updateSCMeta.sumAbs.asUInt
       val scOldCtrs = updateSCMeta.ctrs
-      when (scPred =/= tageTaken && sumAbs < useThreshold - 2.U) {
+      when (scPred =/= tageTaken && sumAbs < useThreshold - 2.U && sumAbs > useThreshold - 4.U) {
         val newThres = scThreshold.update(scPred =/= u.taken)
         scThreshold := newThres
         XSDebug(p"scThres update: old d${useThreshold} --> new ${newThres.thres}\n")

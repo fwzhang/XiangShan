@@ -8,7 +8,7 @@ import xiangshan.backend.ALUOpType
 import xiangshan.backend.JumpOpType
 
 trait HasBPUParameter extends HasXSParameter {
-  val BPUDebug = false
+  val BPUDebug = true
   val EnableCFICommitLog = true
   val EnbaleCFIPredLog = true
   val EnableBPUTimeRecord = EnableCFICommitLog || EnbaleCFIPredLog
@@ -277,8 +277,6 @@ class BPUStage3 extends BPUStage {
   // so we do not use those from inLatch
   val tageResp = io.in.resp.tage
   val tageTakens = tageResp.takens
-  val tageHits   = tageResp.hits
-  val tageValidTakens = VecInit((tageTakens zip tageHits).map{case (t, h) => t && h})
 
   val loopResp = io.in.resp.loop.exit
 
@@ -300,7 +298,7 @@ class BPUStage3 extends BPUStage {
   
   // Use bim results for those who tage does not have an entry for
   val brTakens = brs &
-    (if (EnableBPD) Reverse(Cat((0 until PredictWidth).map(i => tageValidTakens(i) || !tageHits(i) && bimTakens(i)))) else Reverse(Cat((0 until PredictWidth).map(i => bimTakens(i))))) &
+    (if (EnableBPD) Reverse(Cat((0 until PredictWidth).map(i => tageTakens(i)))) else Reverse(Cat((0 until PredictWidth).map(i => bimTakens(i))))) &
     (if (EnableLoop) ~loopResp.asUInt else Fill(PredictWidth, 1.U(1.W)))
     // if (EnableBPD) {
     //   brs & Reverse(Cat((0 until PredictWidth).map(i => tageValidTakens(i))))
