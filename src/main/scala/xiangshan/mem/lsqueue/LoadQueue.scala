@@ -466,7 +466,7 @@ class LoadQueue extends XSModule with HasDCacheParameters with HasCircularQueueP
     )
   }
 
-  io.rollback := ParallelOperation(rollback, rollbackSel)
+  io.rollback := RegNext(ParallelOperation(rollback, rollbackSel))
 
   // Memory mapped IO / other uncached operations
 
