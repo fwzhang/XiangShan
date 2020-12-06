@@ -21,6 +21,10 @@ class StoreUnit_S0 extends XSModule {
   // send req to dtlb
   val saddr = io.in.bits.src1 + io.in.bits.uop.ctrl.imm
 
+  when(io.in.bits.uop.ctrl.imm =/= io.in.bits.src2 && io.in.valid){
+    XSError("imm %x != src2 %x\n", io.in.bits.uop.ctrl.imm, io.in.bits.src2)
+  }
+
   io.dtlbReq.bits.vaddr := saddr
   io.dtlbReq.valid := io.in.valid
   io.dtlbReq.bits.cmd := TlbCmd.write

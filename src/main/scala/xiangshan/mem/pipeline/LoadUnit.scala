@@ -34,6 +34,10 @@ class LoadUnit_S0 extends XSModule {
   val s0_tlb_miss = io.dtlbResp.bits.miss
   val s0_mask = genWmask(s0_vaddr, s0_uop.ctrl.fuOpType(1,0))
 
+  when(s0_uop.ctrl.imm =/= io.in.bits.src2 && io.in.valid){
+    XSError("imm %x != src2 %x\n", s0_uop.ctrl.imm, io.in.bits.src2)
+  }
+
   // query DTLB
   io.dtlbReq.valid := io.out.valid
   io.dtlbReq.bits.vaddr := s0_vaddr
