@@ -372,6 +372,7 @@ class LoadQueue extends XSModule with HasDCacheParameters with HasCircularQueueP
   })
 
   // store backward query and rollback
+  // rollback check starts in Load.S1
   //  val needCheck = Seq.fill(8)(WireInit(true.B))
   (0 until StorePipelineWidth).foreach(i => {
     rollback(i) := DontCare
@@ -466,7 +467,16 @@ class LoadQueue extends XSModule with HasDCacheParameters with HasCircularQueueP
     )
   }
 
-  io.rollback := RegNext(ParallelOperation(rollback, rollbackSel))
+  // rollback will be generated in Load.S2
+  val rollbackReg = RegNext(ParallelOperation(rollback, rollbackSel))
+  val redirectReg = RegNext(io.brqRedirect)
+  io.rollback := rollbackReg
+  // rollback should be canceled if it is in a mispredicted branch
+  io.rollback.valid := rollbackReg.valid && 
+    (!redirectReg.valid || isAfter(redirectReg.bits.roqIdx, rollbackReg.bits.roqIdx))
+  when(rollbackReg.valid) {
+    XSDebug("rollback %d redirect (%b):%d\n", rollbackReg.bits.roqIdx.value, redirectReg.valid, redirectReg.bits.roqIdx.value)
+  }
 
   // Memory mapped IO / other uncached operations
 
